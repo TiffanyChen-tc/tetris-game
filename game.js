@@ -27,14 +27,20 @@ import { MusicManager } from "./class/MusicManager.js";
 // 音效
 const fall = new MusicManager("./assets/sounds/fall.mp3");
 const backgroundMusic = new MusicManager("./assets/sounds/New Jeans.mp3");
-const save = new MusicManager("./assets/sounds/save.mp3")
+const save = new MusicManager("./assets/sounds/save.mp3");
+
+const DETECT_TIME_INTERVAL = 100; // 每隔幾毫秒更新一次遊戲狀態
+const PRESS_DOWN_BUFFER_TIMES = 3; // 若按下下鍵，則跳過觸底偵測幾次，作為操作緩衝時間。
 
 let score = 0;
 let lines = 0;
 let gameLevel = 1;
+
 let isPaused = false
 let gameStart = false;
 let firstKeyDown = true;
+let pressDown = 0; // 倒數緩衝的計時器。若按下下鍵，則給予緩衝時間。
+
 let nextTetris = new Queue();
 const nextTetrisQuan = 3;
 let currentTetris;
@@ -166,6 +172,7 @@ document.addEventListener("keydown", (event) =>{
         else if(event.key === "ArrowDown") 
         {
             newTetris.y++;
+            pressDown = PRESS_DOWN_BUFFER_TIMES;
         }
         else if(event.key === "ArrowUp") 
         {
@@ -209,17 +216,21 @@ document.addEventListener("keydown", (event) =>{
 });
 
 /**
- * 主遊戲迴圈：每隔280毫秒執行一次偵測。
+ * 主遊戲迴圈：每隔DETECT_TIME_INTERVAL毫秒執行一次偵測。
  */
 function gameLoop(){
     clearTimeout(gameLoopTimer); // 確保舊的計時器不會繼續執行
+    if(pressDown > 0)
+    {
+        pressDown --;
+    }
     if(gameStart && !isPaused)
     {
         // console.log("timeout");
         let update = false;
 
-        // 觸底 || 下方撞到地圖已有方塊 --> 放進gameMap中
-        if(hasReachedBottom(currentTetris) || hasReachedOtherBlocksBottom(currentTetris, gameMap))
+        // 觸底 || 下方撞到地圖已有方塊 --> 放進gameMap中 [若有按下下鍵且觸底，給予緩衝時間]
+        if(pressDown == 0 && (hasReachedBottom(currentTetris) || hasReachedOtherBlocksBottom(currentTetris, gameMap)))
         {
             update = true;  
             // 放進gameMap中
@@ -231,7 +242,7 @@ function gameLoop(){
             drawInfoAreaCanvas(score, gameLevel, lines); //更新info區的分數等資訊
         }
 
-        // 檢查是否有需要消除的行
+        // 檢查是否有需要消除的列
         // --> gameMap中去除這些列，並將上方所有列下移，直到下方已有其他方塊or觸底
         // --> 加分 
         let fullLines = checkGameMapLines(gameMap)
@@ -255,7 +266,7 @@ function gameLoop(){
             update = false;
         }
 
-        // 檢查是否nextTetris有3個，若沒有就generate，並顯示於wating area
+        // 檢查是否nextTetris有3個，若沒有就generate，並顯示於waiting area
         if(nextTetris.size() < nextTetrisQuan)
         {
             nextTetris.enqueue(genRandomTetris());
@@ -269,7 +280,7 @@ function gameLoop(){
             gameOver();
         }
     }
-    gameLoopTimer = setTimeout(gameLoop, 280);
+    gameLoopTimer = setTimeout(gameLoop, DETECT_TIME_INTERVAL);
 }
 
 /**
